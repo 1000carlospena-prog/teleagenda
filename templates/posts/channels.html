@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Canales · TeleAgenda{% endblock %}
+{% block page_title %}Canales{% endblock %}
+{% block page_subtitle %}Conecta los canales de Telegram donde publicará el bot.{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn btn-secondary" href="{% url 'channel_discover' %}">Detectar canal</a>
+<a class="btn btn-primary" href="{% url 'channel_create' %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    Agregar canal
+</a>
+{% endblock %}
+
+{% block content %}
+{% if not bot_configured %}
+<div class="alert alert-warning" role="status">
+    <strong>El token del bot no está configurado.</strong> Guárdalo desde Configuración para verificar y publicar en los canales. <a href="{% url 'bot_settings' %}">Configurar bot</a>.
+</div>
+{% endif %}
+
+<section class="card table-card">
+    <div class="card-head">
+        <div>
+            <h2>Canales conectados</h2>
+            <p class="card-subtitle">{{ channels|length }} canal{{ channels|length|pluralize:"es" }} registrado{{ channels|length|pluralize:"s" }}</p>
+        </div>
+        <span class="tz-pill">El bot debe ser administrador</span>
+    </div>
+
+    {% if channels %}
+    <div class="table-wrap">
+        <table class="data-table channels-table">
+            <thead>
+                <tr>
+                    <th scope="col">Canal</th>
+                    <th scope="col">Chat ID</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Verificación</th>
+                    <th scope="col">Publicaciones</th>
+                    <th scope="col" class="cell-actions">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for channel in channels %}
+                <tr>
+                    <td>
+                        <div class="channel-cell">
+                            <span class="channel-avatar" aria-hidden="true">{{ channel.name|first|upper }}</span>
+                            <span class="channel-info">
+                                <strong>{{ channel.name }}</strong>
+                                {% if channel.last_check_at %}<small>Revisado el {{ channel.last_check_at|date:"d M Y, H:i" }}</small>{% else %}<small>Sin verificar todavía</small>{% endif %}
+                            </span>
+                        </div>
+                    </td>
+                    <td><code class="chat-id">{{ channel.chat_id }}</code></td>
+                    <td>
+                        {% if channel.is_active %}
+                        <span class="status-badge status-enviada"><span class="status-dot"></span>Activo</span>
+                        {% else %}
+                        <span class="status-badge status-cancelada"><span class="status-dot"></span>Inactivo</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if channel.last_check_ok %}
+                        <span class="verify-badge verify-ok" title="Conexión verificada">Correcta</span>
+                        {% elif channel.last_check_ok == False %}
+                        <span class="verify-badge verify-error" title="{{ channel.last_check_error }}">Con error</span>
+                        {% else %}
+                        <span class="verify-badge verify-pending">Sin verificar</span>
+                        {% endif %}
+                    </td>
+                    <td><span class="count-pill">{{ channel.post_count }}</span></td>
+                    <td class="cell-actions">
+                        <div class="row-actions">
+                            <form method="post" action="{% url 'channel_test' channel.pk %}">
+                                {% csrf_token %}
+                                <button type="submit" class="icon-btn" title="Probar conexión" aria-label="Probar conexión con {{ channel.name }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                                </button>
+                            </form>
+                            <a class="icon-btn" href="{% url 'channel_edit' channel.pk %}" title="Editar" aria-label="Editar {{ channel.name }}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </a>
+                            <form method="post" action="{% url 'channel_delete' channel.pk %}" data-confirm="¿Eliminar el canal «{{ channel.name }}»? Solo es posible si no tiene publicaciones.">
+                                {% csrf_token %}
+                                <button type="submit" class="icon-btn icon-btn-danger" title="Eliminar" aria-label="Eliminar {{ channel.name }}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+        </span>
+        <h3>No hay canales todavía</h3>
+        <p>Agrega el @usuario o el ID del canal y asegúrate de que el bot sea administrador.</p>
+        <a class="btn btn-primary" href="{% url 'channel_create' %}">Agregar mi primer canal</a>
+    </div>
+    {% endif %}
+</section>
+
+<section class="info-grid">
+    <article class="card info-card">
+        <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+        </span>
+        <h3>Permisos necesarios</h3>
+        <p>El bot debe estar agregado como administrador del canal con el permiso «Publicar mensajes». Sin eso, Telegram rechazará los envíos.</p>
+    </article>
+    <article class="card info-card">
+        <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2M9 12h6M12 9v7M5 21h14a2 2 0 0 0 2-2v-9H3v9a2 2 0 0 0 2 2Z"/></svg>
+        </span>
+        <h3>¿Canal privado?</h3>
+        <p>Usa el ID numérico que empieza con <code>-100</code>. Pulsa «Detectar canal» para obtenerlo desde Telegram sin usar comandos.</p>
+    </article>
+    <article class="card info-card">
+        <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </span>
+        <h3>Varios canales</h3>
+        <p>Puedes registrar todos los canales que quieras y elegir el destino al crear cada publicación.</p>
+    </article>
+</section>
+{% endblock %}

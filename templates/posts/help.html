@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Ayuda · TeleAgenda{% endblock %}
+{% block page_title %}Ayuda y conexión{% endblock %}
+{% block page_subtitle %}Todo lo necesario para dejar el bot y el programador funcionando.{% endblock %}
+
+{% block content %}
+<section class="connection-grid">
+    <article class="card connection-card">
+        <div class="card-head compact">
+            <h2>Bot de Telegram</h2>
+            {% if bot_configured %}
+            <span class="status-badge status-enviada"><span class="status-dot"></span>Token configurado</span>
+            {% else %}
+            <span class="status-badge status-fallida"><span class="status-dot"></span>Falta el token</span>
+            {% endif %}
+        </div>
+        <p class="connection-text">
+            {% if bot_configured %}
+            El token está guardado en el panel. Comprueba que el bot responde y que sigue siendo administrador de tus canales.
+            {% else %}
+            Crea un bot con <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, copia el token y pégalo en Configuración.
+            {% endif %}
+        </p>
+        <p class="connection-text"><a class="link-arrow" href="{% url 'bot_settings' %}">Configurar token del bot &rarr;</a></p>
+        <form method="post" action="{% url 'telegram_test' %}" data-loading="Probando…">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" data-submit>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                Probar conexión del bot
+            </button>
+        </form>
+    </article>
+
+    <article class="card connection-card">
+        <div class="card-head compact">
+            <h2>Programador</h2>
+            <span class="status-badge {% if worker_status.tone == 'ok' %}status-enviada{% elif worker_status.tone == 'warn' %}status-enviando{% else %}status-cancelada{% endif %}">
+                <span class="status-dot"></span>{{ worker_status.label }}
+            </span>
+        </div>
+        <p class="connection-text">{{ worker_status.detail }}</p>
+        <p class="connection-text">El programador es un proceso aparte del panel. Mantenlo abierto en una terminal (o configúralo como servicio) para que las publicaciones salgan a su hora.</p>
+        <pre class="code-block"><code>{{ scheduler_command }}</code></pre>
+    </article>
+
+    <article class="card connection-card">
+        <div class="card-head compact">
+            <h2>Zona horaria</h2>
+            <span class="tz-pill">{{ display_timezone }}</span>
+        </div>
+        <p class="connection-text">Todas las fechas del panel se guardan y muestran en esta zona. Para cambiarla, edita <code>TIME_ZONE</code> en <code>.env</code> y reinicia el panel y el programador.</p>
+        <p class="connection-text"><strong>{{ channel_count }}</strong> canal{{ channel_count|pluralize:"es" }} registrado{{ channel_count|pluralize:"s" }}.</p>
+    </article>
+</section>
+
+<section class="card help-card">
+    <h2>Puesta en marcha paso a paso</h2>
+    <ol class="steps-list">
+        <li>
+            <span class="step-number">1</span>
+            <div>
+                <strong>Crea el bot y obtén el token</strong>
+                <p>Habla con <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, ejecuta <code>/newbot</code>, elige nombre y usuario. Copia el token y pégalo en <a href="{% url 'bot_settings' %}">Configuración → Token del bot</a>.</p>
+            </div>
+        </li>
+        <li>
+            <span class="step-number">2</span>
+            <div>
+                <strong>Agrega el bot al canal</strong>
+                <p>En Telegram: tu canal → Administradores → Agregar administrador → busca el bot → activa «Publicar mensajes». Guarda.</p>
+            </div>
+        </li>
+        <li>
+            <span class="step-number">3</span>
+            <div>
+                <strong>Registra el canal en el panel</strong>
+                <p>Entra a <a href="{% url 'channels' %}">Canales</a> y agrega <code>@usuario_del_canal</code> o su ID numérico. Usa el botón de verificar para confirmar el acceso.</p>
+                <p>Si el canal es privado, publica cualquier mensaje en él y usa <a href="{% url 'channel_discover' %}">Detectar canal</a>. Para encontrar el ID también sirve <code>{{ chat_ids_command }}</code> desde consola.</p>
+            </div>
+        </li>
+        <li>
+            <span class="step-number">4</span>
+            <div>
+                <strong>Enciende el programador</strong>
+                <p>Con el entorno virtual activo, ejecuta en otra terminal:</p>
+                <pre class="code-block"><code>{{ scheduler_command }}</code></pre>
+                <p>Debe mostrar «Programador en línea» en el panel. Si lo cierras, las publicaciones se quedan en cola.</p>
+            </div>
+        </li>
+    </ol>
+</section>
+
+<section class="help-grid">
+    <article class="card help-card">
+        <h2>Formatos y límites</h2>
+        <ul class="tips-list">
+            <li><strong>Texto:</strong> hasta 4096 caracteres. Puedes usar HTML o MarkdownV2.</li>
+            <li><strong>Imagen:</strong> JPG, PNG o WEBP de hasta 10 MB. El texto se envía como caption (máximo 1024 caracteres).</li>
+            <li><strong>Sticker:</strong> WEBP estático, TGS animado o WEBM de video, hasta 512 KB. No admite texto.</li>
+            <li><strong>Enlaces:</strong> puedes ocultar la tarjeta de vista previa en publicaciones de texto.</li>
+        </ul>
+    </article>
+
+    <article class="card help-card">
+        <h2>Ejemplos de formato HTML</h2>
+        <pre class="code-block"><code>&lt;b&gt;Título en negrita&lt;/b&gt;
+&lt;i&gt;Texto en cursiva&lt;/i&gt;
+&lt;a href="https://ejemplo.com"&gt;Visita el sitio&lt;/a&gt;
+
+&lt;b&gt;Oferta del día&lt;/b&gt;
+Descuento exclusivo para suscriptores.</code></pre>
+        <p class="help">Si usas MarkdownV2, recuerda escapar caracteres como <code>_ * [ ] ( ) ~ ` &gt; # + - = | { } . !</code> con una barra invertida.</p>
+    </article>
+
+    <article class="card help-card">
+        <h2>Comandos útiles</h2>
+        <p>Ejecútalos desde la carpeta del proyecto con el entorno virtual activo:</p>
+        <pre class="code-block"><code>python manage.py runserver
+python manage.py scheduler
+python manage.py scheduler --once
+python manage.py get_chat_ids
+python manage.py createsuperuser</code></pre>
+        <p class="help"><code>--once</code> envía lo pendiente una sola vez y termina. Útil para probar.</p>
+    </article>
+
+    <article class="card help-card">
+        <h2>Problemas frecuentes</h2>
+        <ul class="tips-list">
+            <li><strong>«chat not found»:</strong> revisa el chat ID y que el bot siga en el canal como administrador.</li>
+            <li><strong>«not enough rights»:</strong> activa el permiso «Publicar mensajes» al bot.</li>
+            <li><strong>No se envía nada:</strong> el programador debe estar corriendo; mira el estado en la cabecera.</li>
+            <li><strong>Un envío falló:</strong> el error aparece en la fila de la publicación. Corrige y usa «Reintentar ahora».</li>
+        </ul>
+    </article>
+</section>
+{% endblock %}

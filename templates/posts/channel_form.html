@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Editar canal{% else %}Agregar canal{% endif %} · TeleAgenda{% endblock %}
+{% block page_title %}{% if is_edit %}Editar canal{% else %}Agregar canal{% endif %}{% endblock %}
+{% block page_subtitle %}Registra el destino y comprueba que el bot tenga acceso.{% endblock %}
+
+{% block content %}
+<div class="narrow-layout">
+    <form method="post" class="card form-card" data-loading="Guardando…">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="field">
+            <label for="{{ form.name.id_for_label }}">Nombre del canal</label>
+            {{ form.name }}
+            {% for error in form.name.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            <p class="help">Solo para identificarlo dentro del panel.</p>
+        </div>
+
+        <div class="field">
+            <label for="{{ form.chat_id.id_for_label }}">Chat ID o @usuario</label>
+            {{ form.chat_id }}
+            {% for error in form.chat_id.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            <p class="help">Acepta <code>@mi_canal</code>, enlaces <code>t.me/mi_canal</code> o IDs que empiezan con <code>-100</code>.</p>
+        </div>
+
+        <label class="check-field">
+            {{ form.is_active }}
+            <span>
+                <strong>Canal activo</strong>
+                <small>Si lo desactivas, no se enviarán publicaciones a este canal.</small>
+            </span>
+        </label>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" data-submit>
+                {% if is_edit %}Guardar cambios{% else %}Agregar canal{% endif %}
+            </button>
+            <a class="btn btn-ghost" href="{% url 'channels' %}">Cancelar</a>
+        </div>
+    </form>
+
+    <aside class="card tips-card">
+        <h2>Cómo conectar el canal</h2>
+        <ol class="steps-list">
+            <li>
+                <span class="step-number">1</span>
+                <div>
+                    <strong>Crea el bot</strong>
+                    <p>Abre <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a> en Telegram, usa <code>/newbot</code> y pega el token en <a href="{% url 'bot_settings' %}">Configuración</a>.</p>
+                </div>
+            </li>
+            <li>
+                <span class="step-number">2</span>
+                <div>
+                    <strong>Hazlo administrador</strong>
+                    <p>En tu canal: Administradores → Agregar administrador → busca el bot → activa «Publicar mensajes».</p>
+                </div>
+            </li>
+            <li>
+                <span class="step-number">3</span>
+                <div>
+                    <strong>Obtén el chat ID</strong>
+                    <p>Para canales públicos usa <code>@usuario</code>. Para privados, publica algo en el canal y usa <a href="{% url 'channel_discover' %}">Detectar canal</a>.</p>
+                </div>
+            </li>
+        </ol>
+        <a class="link-arrow" href="{% url 'help' %}">Ver guía detallada &rarr;</a>
+        {% if is_edit %}
+        <form method="post" action="{% url 'channel_test' channel.pk %}" class="test-channel-form" data-loading="Probando…">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary btn-block" data-submit>Probar conexión</button>
+        </form>
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

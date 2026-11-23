@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración · TeleAgenda{% endblock %}
+{% block page_title %}Configuración del bot{% endblock %}
+{% block page_subtitle %}Guarda y prueba el token de Telegram sin editar archivos.{% endblock %}
+
+{% block content %}
+<div class="narrow-layout">
+    <form method="post" class="card form-card" data-loading="Guardando…" autocomplete="off">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="card-head compact">
+            <div>
+                <h2>Token del bot</h2>
+                <p class="card-subtitle">El token lo entrega @BotFather al crear el bot.</p>
+            </div>
+            {% if configured %}
+            <span class="status-badge status-enviada"><span class="status-dot"></span>Token configurado</span>
+            {% else %}
+            <span class="status-badge status-fallida"><span class="status-dot"></span>Falta el token</span>
+            {% endif %}
+        </div>
+
+        <div class="field">
+            <label for="{{ form.bot_token.id_for_label }}">Token de @BotFather</label>
+            {{ form.bot_token }}
+            {% for error in form.bot_token.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            <p class="help">
+                {% if configured %}Déjalo vacío para conservar el token actual. Pega otro token para cambiar de bot. {% endif %}
+                Se guarda en la base de datos local del panel y no se vuelve a mostrar.
+            </p>
+            {% if configured and not db_configured %}
+            <p class="help">El token actual proviene de <code>.env</code>. Si guardas uno aquí, tendrá prioridad.</p>
+            {% endif %}
+            {% if db_configured and config %}
+            <p class="help">Última actualización: {{ config.updated_at|date:"d/m/Y H:i" }}.</p>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" data-submit>Guardar token</button>
+            <a class="btn btn-ghost" href="{% url 'dashboard' %}">Cancelar</a>
+        </div>
+    </form>
+
+    <aside class="card tips-card">
+        <h2>Cómo obtener el token</h2>
+        <ol class="steps-list">
+            <li>
+                <span class="step-number">1</span>
+                <div>
+                    <strong>Abre @BotFather</strong>
+                    <p>En Telegram busca <a href="https://t.me/BotFather" target="_blank" rel="noopener">@BotFather</a>, la cuenta oficial con verificación.</p>
+                </div>
+            </li>
+            <li>
+                <span class="step-number">2</span>
+                <div>
+                    <strong>Crea el bot</strong>
+                    <p>Envía <code>/newbot</code>, elige un nombre visible y un usuario que termine en <code>bot</code>.</p>
+                </div>
+            </li>
+            <li>
+                <span class="step-number">3</span>
+                <div>
+                    <strong>Copia el token</strong>
+                    <p>BotFather te dará un texto parecido a <code>123456789:AA...</code>. Pégalo en el formulario y guárdalo.</p>
+                </div>
+            </li>
+            <li>
+                <span class="step-number">4</span>
+                <div>
+                    <strong>Hazlo administrador del canal</strong>
+                    <p>En tu canal: Administradores → Agregar administrador → busca el bot → activa «Publicar mensajes».</p>
+                </div>
+            </li>
+        </ol>
+
+        {% if configured %}
+        <form method="post" action="{% url 'telegram_test' %}" class="test-channel-form" data-loading="Probando…">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'bot_settings' %}">
+            <button type="submit" class="btn btn-secondary btn-block" data-submit>Probar conexión</button>
+        </form>
+        {% endif %}
+
+        {% if db_configured %}
+        <form method="post" action="{% url 'bot_token_remove' %}" class="test-channel-form" data-confirm="¿Quitar el token guardado? El programador dejará de publicar hasta que guardes otro.">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost btn-block">Quitar token guardado</button>
+        </form>
+        {% endif %}
+
+        <p class="help">El token es un secreto: no lo compartas ni lo publiques. Si se filtra, usa <code>/revoke</code> en BotFather.</p>
+        <a class="link-arrow" href="{% url 'channels' %}">Gestionar canales &rarr;</a>
+    </aside>
+</div>
+{% endblock %}

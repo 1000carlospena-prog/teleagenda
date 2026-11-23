@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}Panel · TeleAgenda{% endblock %}
+{% block page_title %}Panel de publicaciones{% endblock %}
+{% block page_subtitle %}Tu próxima publicación y el historial completo, en un solo lugar.{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn btn-primary" href="{% url 'post_create' %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    Nueva publicación
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="stats-grid" aria-label="Resumen">
+    <a class="stat-card" href="{% url 'dashboard' %}?status=programada">
+        <span class="stat-icon stat-icon-blue" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        </span>
+        <span class="stat-body">
+            <span class="stat-value">{{ counts.scheduled }}</span>
+            <span class="stat-label">Programadas</span>
+        </span>
+    </a>
+    <a class="stat-card" href="{% url 'dashboard' %}?status=enviada">
+        <span class="stat-icon stat-icon-green" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+        </span>
+        <span class="stat-body">
+            <span class="stat-value">{{ counts.sent }}</span>
+            <span class="stat-label">Enviadas</span>
+        </span>
+    </a>
+    <a class="stat-card" href="{% url 'dashboard' %}?status=fallida">
+        <span class="stat-icon stat-icon-red" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        </span>
+        <span class="stat-body">
+            <span class="stat-value">{{ counts.failed }}</span>
+            <span class="stat-label">Fallidas</span>
+        </span>
+    </a>
+    <a class="stat-card" href="{% url 'channels' %}">
+        <span class="stat-icon stat-icon-violet" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+        </span>
+        <span class="stat-body">
+            <span class="stat-value">{{ active_channels }}</span>
+            <span class="stat-label">{% if active_channels == 1 %}Canal activo{% else %}Canales activos{% endif %}</span>
+        </span>
+    </a>
+</section>
+
+{% if next_post %}
+<a class="next-post" href="{% url 'post_edit' next_post.pk %}">
+    <span class="next-post-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+    </span>
+    <span class="next-post-body">
+        <span class="next-post-kicker">Próximo envío</span>
+        <strong>{{ next_post.scheduled_at|date:"l d \d\e F, H:i" }}</strong>
+        <span>{{ next_post.channel.name }} · {{ next_post.content_preview|truncatechars:80 }}</span>
+    </span>
+    <span class="next-post-action">Revisar &rarr;</span>
+</a>
+{% endif %}
+
+{% if not bot_configured %}
+<div class="alert alert-warning" role="status">
+    <p><strong>Falta el token del bot.</strong> Guárdalo desde el panel para poder enviar publicaciones. <a href="{% url 'bot_settings' %}">Configurar bot</a>.</p>
+</div>
+{% endif %}
+
+<form class="filters card" method="get" action="{% url 'dashboard' %}">
+    <div class="filter-field">
+        <label for="filter-status">Estado</label>
+        <select id="filter-status" name="status">
+            <option value="">Todos</option>
+            {% for value, label in status_choices %}
+            <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-field">
+        <label for="filter-kind">Tipo</label>
+        <select id="filter-kind" name="kind">
+            <option value="">Todos</option>
+            {% for value, label in kind_choices %}
+            <option value="{{ value }}" {% if filters.kind == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-field">
+        <label for="filter-channel">Canal</label>
+        <select id="filter-channel" name="channel">
+            <option value="">Todos</option>
+            {% for channel in channels %}
+            <option value="{{ channel.pk }}" {% if filters.channel == channel.pk|stringformat:"s" %}selected{% endif %}>{{ channel.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="filter-field filter-search">
+        <label for="filter-q">Buscar</label>
+        <div class="input-with-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="filter-q" type="search" name="q" value="{{ filters.q }}" placeholder="Texto o canal">
+        </div>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="btn btn-secondary">Filtrar</button>
+        {% if filters_active %}<a class="btn btn-ghost" href="{% url 'dashboard' %}">Limpiar</a>{% endif %}
+    </div>
+</form>
+
+<section class="card table-card">
+    <div class="card-head">
+        <div>
+            <h2>Publicaciones</h2>
+            <p class="card-subtitle">{{ total_results }} resultado{{ total_results|pluralize:"s" }}{% if filters_active %} con los filtros aplicados{% endif %}</p>
+        </div>
+        <span class="tz-pill" title="Zona horaria del panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            {{ display_timezone }}
+        </span>
+    </div>
+
+    {% if posts %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Publicación</th>
+                    <th scope="col">Canal</th>
+                    <th scope="col">Programada</th>
+                    <th scope="col">Enviada</th>
+                    <th scope="col" class="cell-actions">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for post in posts %}
+                <tr>
+                    <td>
+                        <span class="status-badge status-{{ post.status }}" {% if post.status == 'fallida' and post.error_text %}title="{{ post.error_text }}"{% endif %}>
+                            <span class="status-dot" aria-hidden="true"></span>{{ post.get_status_display }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="post-cell">
+                            <span class="post-thumb" aria-hidden="true">
+                                {% if post.file and post.is_previewable_image %}
+                                <img src="{{ post.file.url }}" alt="">
+                                {% elif post.kind == 'sticker' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 0-8 8h5a3 3 0 0 0 3-3Z"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg>
+                                {% elif post.kind == 'imagen' %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.5"/><path d="m21 15-4.5-4.5L7 20"/></svg>
+                                {% else %}
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H6a3 3 0 0 1-3-3v-5a8 8 0 1 1 18 0Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></svg>
+                                {% endif %}
+                            </span>
+                            <span class="post-info">
+                                <span class="post-snippet" title="{{ post.text|default:post.content_preview }}">{{ post.content_preview|truncatechars:72 }}</span>
+                                <span class="post-meta">{{ post.get_kind_display }}{% if post.parse_mode %} · {{ post.get_parse_mode_display }}{% endif %}</span>
+                                {% if post.status == 'fallida' and post.error_text %}
+                                <span class="post-error" title="{{ post.error_text }}">{{ post.error_text|truncatechars:56 }}</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="cell-channel">{{ post.channel.name }}</td>
+                    <td class="cell-date">{{ post.scheduled_at|date:"d M Y" }}<span>{{ post.scheduled_at|date:"H:i" }}</span></td>
+                    <td class="cell-date">
+                        {% if post.sent_at %}
+                        {{ post.sent_at|date:"d M Y" }}<span>{{ post.sent_at|date:"H:i" }}</span>
+                        {% else %}
+                        <span class="muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="cell-actions">
+                        <div class="row-actions">
+                            {% if post.can_send_now %}
+                            <form method="post" action="{% url 'post_action' post.pk 'send_now' %}" data-confirm="¿Enviar esta publicación ahora mismo?">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="icon-btn" title="{% if post.status == 'fallida' %}Reintentar ahora{% else %}Enviar ahora{% endif %}" aria-label="{% if post.status == 'fallida' %}Reintentar ahora{% else %}Enviar ahora{% endif %}">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% if post.can_edit %}
+                            <a class="icon-btn" href="{% url 'post_edit' post.pk %}" title="Editar" aria-label="Editar publicación">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </a>
+                            {% endif %}
+                            <form method="post" action="{% url 'post_action' post.pk 'duplicate' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="icon-btn" title="Duplicar" aria-label="Duplicar publicación">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                </button>
+                            </form>
+                            {% if post.can_cancel %}
+                            <form method="post" action="{% url 'post_action' post.pk 'cancel' %}" data-confirm="¿Cancelar esta publicación? No se enviará a Telegram.">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="icon-btn" title="Cancelar" aria-label="Cancelar publicación">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="post" action="{% url 'post_delete' post.pk %}" data-confirm="¿Eliminar esta publicación del panel?{% if post.status == 'enviada' %} El mensaje seguirá visible en Telegram.{% endif %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="icon-btn icon-btn-danger" title="Eliminar" aria-label="Eliminar publicación">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="pagination">
+        <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        <div class="pagination-actions">
+            {% if page_obj.has_previous %}
+            <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&amp;{{ querystring }}{% endif %}">Anterior</a>
+            {% else %}
+            <span class="btn btn-secondary btn-sm is-disabled">Anterior</span>
+            {% endif %}
+            {% if page_obj.has_next %}
+            <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{% if querystring %}&amp;{{ querystring }}{% endif %}">Siguiente</a>
+            {% else %}
+            <span class="btn btn-secondary btn-sm is-disabled">Siguiente</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+        </span>
+        {% if filters_active %}
+        <h3>No hay publicaciones con esos filtros</h3>
+        <p>Prueba con otros criterios o limpia los filtros para ver todo el historial.</p>
+        <a class="btn btn-secondary" href="{% url 'dashboard' %}">Limpiar filtros</a>
+        {% else %}
+        <h3>Aún no hay publicaciones</h3>
+        <p>Crea tu primera publicación para texto, imagen o sticker y elige cuándo enviarla.</p>
+        <a class="btn btn-primary" href="{% url 'post_create' %}">Crear publicación</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

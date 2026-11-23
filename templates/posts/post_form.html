@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Editar publicación{% else %}Nueva publicación{% endif %} · TeleAgenda{% endblock %}
+{% block page_title %}{% if is_edit %}Editar publicación{% else %}Nueva publicación{% endif %}{% endblock %}
+{% block page_subtitle %}Elige el destino, escribe el contenido y define cuándo se publicará.{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="form-layout" data-post-form data-loading="Guardando…" data-panel-now="{% now 'Y-m-d' %}T{% now 'H:i' %}">
+    {% csrf_token %}
+    <div class="card form-card">
+        {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+        {% endif %}
+
+        <section class="form-section">
+            <div class="section-head">
+                <span class="section-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+                </span>
+                <div>
+                    <h2>Destino y tipo</h2>
+                    <p>A dónde va y qué formato tendrá la publicación.</p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="{{ form.channel.id_for_label }}">Canal</label>
+                {{ form.channel }}
+                {% for error in form.channel.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                <p class="help">El bot debe ser administrador del canal con permiso para publicar. <a href="{% url 'channels' %}">Gestionar canales</a>.</p>
+            </div>
+
+            <div class="field">
+                <span class="label">Tipo de publicación</span>
+                <div class="kind-options">{{ form.kind }}</div>
+                {% for error in form.kind.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                <p class="help">Texto hasta 4096 caracteres · Imagen JPG/PNG/WEBP hasta 10 MB · Sticker WEBP/TGS/WEBM hasta 512 KB.</p>
+            </div>
+        </section>
+
+        <section class="form-section">
+            <div class="section-head">
+                <span class="section-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H6a3 3 0 0 1-3-3v-5a8 8 0 1 1 18 0Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></svg>
+                </span>
+                <div>
+                    <h2>Contenido</h2>
+                    <p>El mensaje que verá tu audiencia.</p>
+                </div>
+            </div>
+
+            <div class="field" data-field="text">
+                <label for="{{ form.text.id_for_label }}" data-text-label>Texto del mensaje</label>
+                {{ form.text }}
+                <div class="field-foot">
+                    <p class="help" data-text-help>Puedes usar formato HTML si lo seleccionas abajo.</p>
+                    <span class="char-counter" data-text-counter></span>
+                </div>
+                {% for error in form.text.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="field" data-field="file">
+                <label for="{{ form.file.id_for_label }}">Archivo</label>
+                {{ form.file }}
+                <p class="help" data-file-help>Adjunta una imagen o un sticker según el tipo elegido.</p>
+                {% for error in form.file.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="format-row" data-field="format">
+                <div class="field">
+                    <label for="{{ form.parse_mode.id_for_label }}">Formato del texto</label>
+                    {{ form.parse_mode }}
+                    {% for error in form.parse_mode.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                    <p class="help">Con HTML puedes usar <code>&lt;b&gt;negrita&lt;/b&gt;</code> o <code>&lt;a href="…"&gt;enlace&lt;/a&gt;</code>.</p>
+                </div>
+                <label class="check-field" data-field="preview-links">
+                    {{ form.disable_preview }}
+                    <span>
+                        <strong>Ocultar vista previa de enlaces</strong>
+                        <small>Evita que Telegram muestre la tarjeta del enlace.</small>
+                    </span>
+                </label>
+            </div>
+        </section>
+
+        <section class="form-section">
+            <div class="section-head">
+                <span class="section-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18M12 14v3M10.5 15.5h3"/></svg>
+                </span>
+                <div>
+                    <h2>Programación</h2>
+                    <p>Elige la fecha y hora del envío.</p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="{{ form.scheduled_at.id_for_label }}">Fecha y hora</label>
+                <div class="schedule-row">
+                    {{ form.scheduled_at }}
+                    <div class="quick-times" role="group" aria-label="Atajos de programación">
+                        <button type="button" class="chip" data-quick="1h">+1 hora</button>
+                        <button type="button" class="chip" data-quick="3h">+3 horas</button>
+                        <button type="button" class="chip" data-quick="tomorrow">Mañana 9:00</button>
+                    </div>
+                </div>
+                {% for error in form.scheduled_at.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                <p class="help">Zona horaria del panel: <strong>{{ display_timezone }}</strong>. El programador revisa cada pocos segundos.</p>
+            </div>
+        </section>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" data-submit>
+                {% if is_edit %}Guardar cambios{% else %}Programar publicación{% endif %}
+            </button>
+            <button type="submit" class="btn btn-secondary" name="send_now" value="1" data-submit>
+                {% if is_edit %}Guardar y enviar ahora{% else %}Enviar ahora{% endif %}
+            </button>
+            <a class="btn btn-ghost" href="{% url 'dashboard' %}">Cancelar</a>
+            <span class="form-hint">«Enviar ahora» requiere que el programador esté en línea.</span>
+        </div>
+    </div>
+
+    <aside class="preview-column">
+        <div class="card preview-card">
+            <div class="card-head compact">
+                <h2>Vista previa</h2>
+                <span class="live-pill"><span class="live-dot"></span>En vivo</span>
+            </div>
+            <div class="tg-preview">
+                <div class="tg-head">
+                    <span class="tg-avatar" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                    </span>
+                    <span class="tg-channel">
+                        <strong data-preview-channel>{% if post %}{{ post.channel.name }}{% else %}Tu canal{% endif %}</strong>
+                        <small>canal de Telegram</small>
+                    </span>
+                </div>
+                <div class="tg-bubble" data-preview-bubble>
+                    <div class="tg-media" data-preview-media hidden>
+                        <img data-preview-img alt="Vista previa del archivo" hidden>
+                        <div class="tg-file" data-preview-label hidden></div>
+                    </div>
+                    <div class="tg-text" data-preview-text>{% if form.text.value %}{{ form.text.value }}{% else %}Escribe el mensaje…{% endif %}</div>
+                    <span class="tg-time" data-preview-time>Fecha por definir</span>
+                </div>
+            </div>
+            <p class="help preview-note">La vista previa es aproximada; Telegram ajusta tamaños y estilos según el dispositivo.</p>
+        </div>
+
+        <div class="card tips-card">
+            <h2>Antes de programar</h2>
+            <ul class="tips-list">
+                <li>Verifica que el bot siga siendo administrador del canal.</li>
+                <li>Revisa la hora: se usa la zona {{ display_timezone }}.</li>
+                <li>Para HTML, cierra bien las etiquetas; para MarkdownV2, escapa los caracteres especiales.</li>
+                <li>Los stickers no admiten texto y deben pesar menos de 512 KB.</li>
+            </ul>
+            <a class="link-arrow" href="{% url 'help' %}">Ver guía completa &rarr;</a>
+        </div>
+    </aside>
+</form>
+{% endblock %}

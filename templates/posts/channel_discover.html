@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Detectar canales · TeleAgenda{% endblock %}
+{% block page_title %}Detectar canales{% endblock %}
+{% block page_subtitle %}Encuentra el ID de un canal privado desde el panel, sin usar comandos.{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn btn-secondary" href="{% url 'channels' %}">Volver a canales</a>
+<a class="btn btn-primary" href="{% url 'channel_create' %}">Agregar manualmente</a>
+{% endblock %}
+
+{% block content %}
+{% if not bot_configured %}
+<div class="alert alert-warning" role="status">
+    <strong>Falta el token del bot.</strong> Guárdalo desde Configuración antes de buscar canales. <a href="{% url 'bot_settings' %}">Configurar bot</a>.
+</div>
+{% endif %}
+
+<section class="card table-card">
+    <div class="card-head">
+        <div>
+            <h2>Buscar canales recientes</h2>
+            <p class="card-subtitle">Telegram guarda los últimos chats donde estuvo el bot.</p>
+        </div>
+        <span class="tz-pill">Sin consola</span>
+    </div>
+    <form method="post">
+        {% csrf_token %}
+        <div class="card-head compact">
+            <p class="muted">Para canales privados, publica un mensaje en el canal o agrega el bot como administrador y vuelve a buscar.</p>
+            <button type="submit" class="btn btn-primary">Buscar canales</button>
+        </div>
+    </form>
+
+    {% if searched %}
+        {% if chats %}
+        <div class="table-wrap">
+            <table class="data-table channels-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Chat o canal</th>
+                        <th scope="col">Tipo</th>
+                        <th scope="col">Usuario</th>
+                        <th scope="col">Chat ID</th>
+                        <th scope="col">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for chat in chats %}
+                    <tr>
+                        <td><strong>{{ chat.title }}</strong></td>
+                        <td><span class="chip">{{ chat.type }}</span></td>
+                        <td>{% if chat.username %}<code class="chat-id">{{ chat.username }}</code>{% else %}<span class="muted">Sin usuario</span>{% endif %}</td>
+                        <td><code class="chat-id">{{ chat.numeric_id }}</code></td>
+                        <td>
+                            {% if chat.already_added %}
+                            <span class="status-badge status-enviada"><span class="status-dot"></span>Ya agregado</span>
+                            {% else %}
+                            <form method="post" action="{% url 'channel_add_detected' %}" class="row-actions">
+                                {% csrf_token %}
+                                <input type="hidden" name="chat_id" value="{{ chat.suggested_id }}">
+                                <input type="hidden" name="is_active" value="on">
+                                <label class="sr-only" for="detect-name-{{ forloop.counter }}">Nombre del canal</label>
+                                <input id="detect-name-{{ forloop.counter }}" type="text" name="name" value="{{ chat.title }}" maxlength="120" required>
+                                <button type="submit" class="btn btn-secondary">Agregar</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h3>No aparecieron canales</h3>
+            <p>Agrega el bot como administrador del canal, publica un mensaje allí y vuelve a pulsar «Buscar canales».</p>
+        </div>
+        {% endif %}
+    {% else %}
+    <div class="empty-state">
+        <h3>Busca tus canales</h3>
+        <p>Pulsa «Buscar canales» para listar los chats donde estuvo tu bot. Para un canal público también puedes escribir <code>@usuario_del_canal</code> manualmente.</p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="info-grid">
+    <article class="card info-card">
+        <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></svg>
+        </span>
+        <h3>Permisos del bot</h3>
+        <p>El bot debe ser administrador con permiso «Publicar mensajes». Si no aparece el canal, revisa ese permiso y publica algo en él.</p>
+    </article>
+    <article class="card info-card">
+        <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2M9 12h6M12 9v7M5 21h14a2 2 0 0 0 2-2v-9H3v9a2 2 0 0 0 2 2Z"/></svg>
+        </span>
+        <h3>Canal privado</h3>
+        <p>Usa el ID numérico que empieza con <code>-100</code>. Esta página lo obtiene automáticamente de Telegram.</p>
+    </article>
+    <article class="card info-card">
+        <span class="info-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        </span>
+        <h3>Después de agregar</h3>
+        <p>Vuelve a Canales y pulsa «Probar conexión» para verificar que el bot puede publicar allí.</p>
+    </article>
+</section>
+{% endblock %}
