@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Programaciones · TeleAgenda{% endblock %}
+{% block page_title %}Programaciones semanales{% endblock %}
+{% block page_subtitle %}Repite un mensaje en varios días y horas; cada envío se crea como una publicación normal.{% endblock %}
+
+{% block topbar_actions %}
+<a class="btn btn-primary" href="{% url 'schedule_create' %}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    Nueva programación
+</a>
+{% endblock %}
+
+{% block content %}
+<section class="card table-card">
+    <div class="card-head">
+        <div>
+            <h2>Tareas programadas</h2>
+            <p class="card-subtitle">Detén una tarea para cancelar sus envíos pendientes y dejar de repetirla.</p>
+        </div>
+        <span class="tz-pill" title="Zona horaria del panel">{{ display_timezone }}</span>
+    </div>
+
+    {% if rules %}
+    <div class="table-wrap">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">Programación</th>
+                    <th scope="col">Canal</th>
+                    <th scope="col">Días y horas</th>
+                    <th scope="col">Repetición</th>
+                    <th scope="col">Pendientes</th>
+                    <th scope="col" class="cell-actions">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rule in rules %}
+                <tr>
+                    <td>
+                        <div class="post-cell">
+                            <span class="post-info">
+                                <span class="post-snippet">{{ rule.name }}</span>
+                                <span class="post-meta">{{ rule.get_kind_display }} · {{ rule.content_preview|default:rule.name|truncatechars:60 }}</span>
+                            </span>
+                        </div>
+                    </td>
+                    <td class="cell-channel">{{ rule.channel.name }}</td>
+                    <td class="cell-schedule">{{ rule.schedule_summary }}</td>
+                    <td>
+                        {% if rule.repeat_weekly and rule.is_active %}
+                        <span class="status-badge status-programada"><span class="status-dot" aria-hidden="true"></span>Todas las semanas</span>
+                        {% elif rule.is_active %}
+                        <span class="status-badge status-cancelada"><span class="status-dot" aria-hidden="true"></span>Solo una vez</span>
+                        {% else %}
+                        <span class="status-badge status-cancelada"><span class="status-dot" aria-hidden="true"></span>Detenida</span>
+                        {% endif %}
+                    </td>
+                    <td class="cell-date">{{ rule.pending_count }}</td>
+                    <td class="cell-actions">
+                        <div class="row-actions">
+                            <a class="icon-btn" href="{% url 'schedule_edit' rule.pk %}" title="Editar" aria-label="Editar programación">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                            </a>
+                            <form method="post" action="{% url 'schedule_toggle' rule.pk %}" data-confirm="{% if rule.is_active %}¿Detener esta tarea? Se cancelarán sus envíos pendientes.{% else %}¿Reactivar esta tarea? Se generarán nuevos envíos.{% endif %}" data-loading="Guardando…">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="icon-btn" title="{% if rule.is_active %}Detener{% else %}Reactivar{% endif %}" aria-label="{% if rule.is_active %}Detener tarea{% else %}Reactivar tarea{% endif %}">
+                                    {% if rule.is_active %}
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+                                    {% else %}
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 4 12 8-12 8Z"/></svg>
+                                    {% endif %}
+                                </button>
+                            </form>
+                            <form method="post" action="{% url 'schedule_delete' rule.pk %}" data-confirm="¿Eliminar esta programación? Se cancelarán sus envíos pendientes; los ya enviados se conservan." data-loading="Eliminando…">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="icon-btn icon-btn-danger" title="Eliminar" aria-label="Eliminar programación">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18M8 15h8"/></svg>
+        </span>
+        <h3>Aún no hay programaciones</h3>
+        <p>Crea una para publicar el mismo mensaje en varios días y horas, o todas las semanas.</p>
+        <a class="btn btn-primary" href="{% url 'schedule_create' %}">Nueva programación</a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

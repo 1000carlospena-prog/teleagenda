@@ -6,7 +6,7 @@ from django import forms
 from django.core.files.uploadedfile import UploadedFile
 from django.utils import timezone
 
-from .models import Channel, Post
+from .models import TIME_PATTERN, WEEKDAY_CHOICES, Channel, Post, ScheduleRule
 
 
 class ChannelForm(forms.ModelForm):
@@ -202,3 +202,112 @@ class PostForm(forms.ModelForm):
                 post.file.storage.delete(old_file_name)
 
         return post
+
+
+class ScheduleRuleForm(forms.ModelForm):
+    weekdays = forms.MultipleChoiceField(
+        label="Días",
+        choices=WEEKDAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple(attrs={"class": "weekday-inputs"}),
+    )
+    times = forms.CharField(
+        label="Horas",
+        max_length=500,
+        widget=forms.TextInput(
+            attrs={"placeholder": "09:00, 13:30:15, 20:00", "data-time-input": ""}
+        ),
+    )
+
+    class Meta:
+        model = ScheduleRule
+        fields = [
+            "name",
+            "channel",
+            "kind",
+            "text",
+            "file",
+            "parse_mode",
+            "disable_preview",
+            "weekdays",
+            "times",
+            "repeat_weekly",
+        ]
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Noticias de la mañana"}),
+            "kind": forms.RadioSelect(attrs={"class": "kind-input"}),
+            "text": forms.Textarea(
+                attrs={"rows": 6, "placeholder": "Escribe el mensaje que verá tu audiencia…"}
+            ),
+            "file": forms.ClearableFileInput(
+                attrs={"accept": "image/jpeg,image/png,image/webp,.webp,.tgs,.webm"}
+            ),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["channel"].queryset = Channel.objects.all()
+        self.fields["channel"].empty_label = "Elige un canal…"
+        if not self.is_bound and self.instance.pk:
+            self.initial["weekdays"] = [str(day) for day in self.instance.weekday_list()]
+            self.initial["times"] = ", ".join(
+                f"{hour:02d}:{minute:02d}" + (f":{second:02d}" if second else "")
+                for hour, minute, second in self.instance.time_list()
+            )
+
+    def clean_weekdays(self):
+        values = self.cleaned_data.get("weekdays") or []
+        days = sorted({int(value) for value in values if str(value).isdigit()})
+        if not days:
+            raise forms.ValidationError("Elige al menos un día de la semana.")
+        return ",".join(str(day) for day in days)
+
+    def clean_times(self):
+        value = (self.cleaned_data.get("times") or "").strip()
+        parsed = []
+        for raw in value.split(","):
+            item = raw.strip()
+            if not item:
+                continue
+            if not TIME_PATTERN.fullmatch(item):
+                raise forms.ValidationError(
+                    f"Hora no válida: «{item}». Usa HH:MM o HH:MM:SS, por ejemplo 09:30:15."
+                )
+            parts = [int(part) for part in item.split(":")]
+            while len(parts) < 3:
+                parts.append(0)
+            parsed.append(parts)
+        if not parsed:
+            raise forms.ValidationError("Agrega al menos una hora.")
+        return ",".join(f"{hour:02d}:{minute:02d}:{second:02d}" for hour, minute, second in parsed)
+
+    def clean(self):
+        cleaned = super().clean()
+        kind = cleaned.get("kind")
+        channel = cleaned.get("channel")
+        if channel and not channel.is_active:
+            self.add_error("channel", "Este canal está inactivo. Actívalo antes de programar.")
+        if kind == Post.Kind.STICKER:
+            cleaned["text"] = ""
+            cleaned["parse_mode"] = Post.ParseMode.NONE
+            cleaned["disable_preview"] = False
+        elif kind == Post.Kind.PHOTO:
+            cleaned["disable_preview"] = False
+        return cleaned
+
+    def save(self, commit=True):
+        old_file_name = None
+        if self.instance.pk:
+            old_file_name = (
+                ScheduleRule.objects.filter(pk=self.instance.pk)
+                .values_list("file", flat=True)
+                .first()
+            )
+        rule = super().save(commit=False)
+        if rule.kind == Post.Kind.TEXT and rule.file:
+            rule.file.delete(save=False)
+            rule.file = None
+        if commit:
+            rule.save()
+            if old_file_name and (not rule.file or rule.file.name != old_file_name):
+                rule.file.storage.delete(old_file_name)
+        return rule

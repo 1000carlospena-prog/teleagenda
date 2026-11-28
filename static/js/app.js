@@ -327,11 +327,85 @@
         update();
     };
 
+    const initScheduleForm = () => {
+        const form = document.querySelector("[data-schedule-form]");
+        if (!form) return;
+
+        const timeInput = form.querySelector("[data-time-input]");
+        const clock = form.querySelector("[data-panel-clock]");
+        const nowButton = form.querySelector("[data-use-now]");
+        const allDaysButton = form.querySelector("[data-all-days]");
+        const textInput = form.querySelector("[data-field='text'] textarea");
+        const counter = form.querySelector("[data-schedule-counter]");
+        const kindInputs = Array.from(form.querySelectorAll('input[name="kind"]'));
+        const fileField = form.querySelector("[data-field='file']");
+        const formatRow = form.querySelector("[data-field='format']");
+
+        let clockDate = parseWallDate(form.dataset.panelNow);
+        const pad = (value) => String(value).padStart(2, "0");
+        const clockLabel = () => {
+            if (!clockDate) return "--:--:--";
+            return `${pad(clockDate.getUTCHours())}:${pad(clockDate.getUTCMinutes())}:${pad(clockDate.getUTCSeconds())}`;
+        };
+        const tick = () => {
+            if (clockDate) clockDate = new Date(clockDate.getTime() + 1000);
+            if (clock) clock.textContent = clockLabel();
+        };
+
+        if (clockDate) tick();
+        if (clockDate) window.setInterval(tick, 1000);
+
+        if (nowButton && timeInput) {
+            nowButton.addEventListener("click", () => {
+                const value = clockLabel();
+                if (value.startsWith("--")) return;
+                const values = timeInput.value
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean);
+                if (!values.includes(value)) values.push(value);
+                timeInput.value = values.join(", ");
+                timeInput.focus();
+            });
+        }
+
+        if (allDaysButton) {
+            allDaysButton.addEventListener("click", () => {
+                form.querySelectorAll('input[name="weekdays"]').forEach((input) => {
+                    input.checked = true;
+                });
+            });
+        }
+
+        const updateKind = () => {
+            const checked = kindInputs.find((input) => input.checked);
+            const kind = checked ? checked.value : "texto";
+            const isText = kind === "texto";
+            const isSticker = kind === "sticker";
+            if (textInput) textInput.disabled = isSticker;
+            if (fileField) fileField.hidden = isText;
+            if (formatRow) formatRow.hidden = isSticker;
+            if (counter) {
+                if (isSticker) {
+                    counter.textContent = "";
+                } else {
+                    const max = kind === "imagen" ? 1024 : 4096;
+                    counter.textContent = `${textInput ? textInput.value.length : 0} / ${max}`;
+                }
+            }
+        };
+
+        if (textInput) textInput.addEventListener("input", updateKind);
+        kindInputs.forEach((input) => input.addEventListener("change", updateKind));
+        updateKind();
+    };
+
     onReady(() => {
         initToasts();
         initConfirms();
         initLoadingForms();
         initStatusPolling();
         initPostForm();
+        initScheduleForm();
     });
 })();

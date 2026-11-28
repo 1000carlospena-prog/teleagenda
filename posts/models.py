@@ -1,9 +1,11 @@
+import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.files import File
 from django.db import models
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
@@ -13,6 +15,17 @@ MAX_PHOTO_BYTES = 10 * 1024 * 1024
 MAX_STICKER_BYTES = 512 * 1024
 PHOTO_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 STICKER_EXTENSIONS = {".webp", ".tgs", ".webm"}
+
+WEEKDAY_CHOICES = [
+    (0, "Lunes"),
+    (1, "Martes"),
+    (2, "Miércoles"),
+    (3, "Jueves"),
+    (4, "Viernes"),
+    (5, "Sábado"),
+    (6, "Domingo"),
+]
+TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$")
 
 
 def post_file_path(instance, filename):
@@ -80,6 +93,14 @@ class Post(models.Model):
         related_name="posts",
         verbose_name="canal",
     )
+    rule = models.ForeignKey(
+        "posts.ScheduleRule",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="posts",
+        verbose_name="programación semanal",
+    )
     kind = models.CharField("tipo", max_length=10, choices=Kind.choices, default=Kind.TEXT)
     text = models.TextField("texto", blank=True)
     file = models.FileField("archivo", upload_to=post_file_path, blank=True)
@@ -114,6 +135,11 @@ class Post(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} para {self.channel.name} · {self.scheduled_at:%d/%m/%Y %H:%M}"
+
+    @property
+    def scheduled_time_label(self):
+        value = timezone.localtime(self.scheduled_at)
+        return value.strftime("%H:%M:%S" if value.second else "%H:%M")
 
     @property
     def file_extension(self):
@@ -186,6 +212,199 @@ class Post(models.Model):
                 self.parse_mode = self.ParseMode.NONE
 
 
+class ScheduleRule(models.Model):
+    name = models.CharField("nombre", max_length=120, default="Programación semanal")
+    channel = models.ForeignKey(
+        Channel,
+        on_delete=models.PROTECT,
+        related_name="rules",
+        verbose_name="canal",
+    )
+    kind = models.CharField("tipo", max_length=10, choices=Post.Kind.choices, default=Post.Kind.TEXT)
+    text = models.TextField("texto", blank=True)
+    file = models.FileField("archivo", upload_to=post_file_path, blank=True)
+    parse_mode = models.CharField(
+        "formato",
+        max_length=12,
+        choices=Post.ParseMode.choices,
+        default=Post.ParseMode.HTML,
+        blank=True,
+    )
+    disable_preview = models.BooleanField("sin vista previa de enlaces", default=False)
+    weekdays = models.CharField("días", max_length=20)
+    times = models.CharField("horas", max_length=500)
+    repeat_weekly = models.BooleanField("publicar todas las semanas", default=True)
+    is_active = models.BooleanField("activa", default=True)
+    last_generated_week = models.DateField("última semana generada", null=True, blank=True)
+    created_at = models.DateTimeField("creada", auto_now_add=True)
+    updated_at = models.DateTimeField("actualizada", auto_now=True)
+
+    class Meta:
+        verbose_name = "programación semanal"
+        verbose_name_plural = "programaciones semanales"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return self.name
+
+    def weekday_list(self):
+        values = []
+        for item in (self.weekdays or "").split(","):
+            value = item.strip()
+            if value.isdigit() and int(value) in dict(WEEKDAY_CHOICES):
+                if int(value) not in values:
+                    values.append(int(value))
+        return sorted(values)
+
+    def time_list(self):
+        result = []
+        for raw in (self.times or "").split(","):
+            value = raw.strip()
+            if TIME_PATTERN.fullmatch(value):
+                parts = [int(part) for part in value.split(":")]
+                while len(parts) < 3:
+                    parts.append(0)
+                result.append(tuple(parts))
+        return result
+
+    @property
+    def content_preview(self):
+        if self.text:
+            return " ".join(self.text.split())
+        if self.file:
+            return Path(self.file.name).name
+        return "(sin contenido)"
+
+    def schedule_summary(self):
+        days = ", ".join(dict(WEEKDAY_CHOICES)[day] for day in self.weekday_list())
+        hours = ", ".join(
+            f"{hour:02d}:{minute:02d}" + (f":{second:02d}" if second else "")
+            for hour, minute, second in self.time_list()
+        )
+        return f"{days} · {hours}"
+
+    def clean(self):
+        super().clean()
+        self.name = (self.name or "").strip() or "Programación semanal"
+        self.weekdays = ",".join(str(day) for day in self.weekday_list())
+        if not self.weekday_list():
+            raise ValidationError({"weekdays": "Elige al menos un día de la semana."})
+
+        parsed = []
+        for raw in (self.times or "").split(","):
+            value = raw.strip()
+            if not value:
+                continue
+            if not TIME_PATTERN.fullmatch(value):
+                raise ValidationError(
+                    {"times": f"Hora no válida: «{value}». Usa HH:MM o HH:MM:SS, por ejemplo 09:30:15."}
+                )
+            parts = [int(part) for part in value.split(":")]
+            while len(parts) < 3:
+                parts.append(0)
+            parsed.append(parts)
+        if not parsed:
+            raise ValidationError({"times": "Agrega al menos una hora."})
+        self.times = ",".join(f"{hour:02d}:{minute:02d}:{second:02d}" for hour, minute, second in parsed)
+
+        self.text = (self.text or "").strip()
+        if self.kind == Post.Kind.STICKER:
+            self.text = ""
+            self.parse_mode = Post.ParseMode.NONE
+            self.disable_preview = False
+        elif self.kind == Post.Kind.PHOTO:
+            self.disable_preview = False
+
+        probe = Post(
+            channel=self.channel,
+            kind=self.kind,
+            text=self.text,
+            file=self.file,
+            parse_mode=self.parse_mode,
+            disable_preview=self.disable_preview,
+            scheduled_at=timezone.now(),
+        )
+        try:
+            probe.clean()
+        except ValidationError as exc:
+            raise ValidationError(exc.message_dict) from exc
+
+    @classmethod
+    def current_week(cls, moment=None):
+        local_date = timezone.localtime(moment or timezone.now()).date()
+        return local_date - timedelta(days=local_date.weekday())
+
+    def generate_for_week(self, week_start, skip_past=False):
+        now = timezone.now()
+        created = []
+        for weekday in self.weekday_list():
+            day = week_start + timedelta(days=weekday)
+            for hour, minute, second in self.time_list():
+                naive = datetime.combine(day, time(hour, minute, second))
+                when = timezone.make_aware(naive)
+                if skip_past and when <= now:
+                    continue
+                existing = Post.objects.filter(
+                    rule=self,
+                    scheduled_at=when,
+                    status__in=[Post.Status.SCHEDULED, Post.Status.SENDING],
+                )
+                if existing.exists():
+                    continue
+                post = Post(
+                    rule=self,
+                    channel=self.channel,
+                    kind=self.kind,
+                    text=self.text,
+                    parse_mode=self.parse_mode,
+                    disable_preview=self.disable_preview,
+                    scheduled_at=when,
+                )
+                if self.file:
+                    self.file.open("rb")
+                    try:
+                        post.file.save(Path(self.file.name).name, File(self.file), save=False)
+                    finally:
+                        self.file.close()
+                post.save()
+                created.append(post)
+        self.last_generated_week = week_start
+        self.save(update_fields=["last_generated_week", "updated_at"])
+        return created
+
+    def generate_initial(self):
+        week = self.current_week()
+        created = self.generate_for_week(week, skip_past=True)
+        if not created:
+            created = self.generate_for_week(week + timedelta(days=7))
+        return created
+
+    def regenerate(self):
+        Post.objects.filter(
+            rule=self,
+            status=Post.Status.SCHEDULED,
+            scheduled_at__gte=timezone.now(),
+        ).delete()
+        self.last_generated_week = None
+        self.save(update_fields=["last_generated_week", "updated_at"])
+        return self.generate_initial()
+
+
+def expand_schedule_rules(now=None):
+    current_week = ScheduleRule.current_week(now)
+    rules = ScheduleRule.objects.filter(is_active=True, repeat_weekly=True)
+    for rule in rules:
+        if not rule.last_generated_week:
+            rule.generate_for_week(current_week, skip_past=True)
+            continue
+        cursor = rule.last_generated_week + timedelta(days=7)
+        for _ in range(8):
+            if cursor > current_week:
+                break
+            rule.generate_for_week(cursor, skip_past=True)
+            cursor += timedelta(days=7)
+
+
 class BotConfig(models.Model):
     bot_token = models.CharField("token del bot", max_length=200, blank=True)
     updated_at = models.DateTimeField("actualizado", auto_now=True)
@@ -231,5 +450,11 @@ class WorkerState(models.Model):
 
 @receiver(post_delete, sender=Post)
 def delete_post_file(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)
+
+
+@receiver(post_delete, sender=ScheduleRule)
+def delete_rule_file(sender, instance, **kwargs):
     if instance.file:
         instance.file.delete(save=False)

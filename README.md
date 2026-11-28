@@ -13,6 +13,7 @@ Bot de Telegram + panel web en Django para programar publicaciones de **texto, i
 - Configuración del token del bot desde el panel, sin editar archivos; permite cambiarlo o quitarlo.
 - Detección de canales recientes desde el panel, sin usar `get_chat_ids`.
 - Botón **Enviar ahora** al crear o editar publicaciones.
+- Programaciones semanales: varios días y horas (con segundos opcionales) y opción de repetir todas las semanas.
 - Verificación de canales con la API de Telegram y errores visibles.
 - Vista previa aproximada del mensaje y atajos de programación.
 - Registro de errores de Telegram y recuperación de envíos interrumpidos.
@@ -86,7 +87,7 @@ Si no aparece nada, publica un mensaje en el canal (con el bot ya como administr
 
 1. **Nueva publicación**: elige canal y tipo, escribe el contenido, adjunta el archivo si aplica y define fecha y hora.
 2. Revisa la vista previa y pulsa **Programar publicación**.
-3. El programador revisa la cola cada pocos segundos y envía lo que ya venció.
+3. El programador revisa la cola cada pocos segundos y envía lo que ya venció. En **Programaciones** puedes crear una tarea con varios días/horas del panel; cada envío se crea como una publicación normal. Con «Publicar todas las semanas» se generan los envíos de la semana siguiente al llegar el lunes; para parar, detén la tarea desde esa lista.
 4. En el panel puedes **Enviar ahora**, **Reintentar**, **Editar**, **Duplicar**, **Cancelar** o **Eliminar**.
 5. Si el programador está detenido, las publicaciones quedan en cola y se envían cuando lo inicies.
 
@@ -204,7 +205,7 @@ Las convenciones, comandos y reglas de verificación para asistentes o desarroll
 ```
 config/                 Configuración Django
 posts/
-  models.py             Canales, publicaciones y estado del programador
+  models.py             Canales, publicaciones, programaciones semanales y estado del programador
   forms.py              Validación de formularios
   views.py              Panel web
   services/telegram.py  Cliente de la Bot API

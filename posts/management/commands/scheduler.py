@@ -7,7 +7,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils import timezone
 
-from posts.models import Post, WorkerState
+from posts.models import Post, WorkerState, expand_schedule_rules
 from posts.services.telegram import TelegramError, get_bot_token, send_post
 
 
@@ -69,6 +69,7 @@ class Command(BaseCommand):
                 WorkerState.objects.filter(pk=1).update(
                     running=True, last_seen=timezone.now()
                 )
+                expand_schedule_rules()
                 self.process_due()
                 if once:
                     break

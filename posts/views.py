@@ -14,8 +14,8 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import BotTokenForm, ChannelForm, PostForm
-from .models import BotConfig, Channel, Post, WorkerState
+from .forms import BotTokenForm, ChannelForm, PostForm, ScheduleRuleForm
+from .models import BotConfig, Channel, Post, ScheduleRule, WorkerState
 from .services.telegram import (
     TelegramError,
     bot_token_configured,
@@ -263,6 +263,125 @@ def post_action(request, pk, action):
         return redirect(next_url)
 
     return redirect(next_url)
+
+
+@login_required
+def schedule_list(request):
+    rules = (
+        ScheduleRule.objects.select_related("channel")
+        .annotate(
+            pending_count=Count(
+                "posts", filter=Q(posts__status=Post.Status.SCHEDULED)
+            )
+        )
+        .order_by("-created_at")
+    )
+    return render(request, "posts/schedule_list.html", {"rules": rules})
+
+
+@login_required
+def schedule_create(request):
+    if not Channel.objects.filter(is_active=True).exists():
+        messages.warning(request, "Primero agrega y activa un canal de Telegram.")
+        return redirect("channel_create")
+
+    if request.method == "POST":
+        form = ScheduleRuleForm(request.POST, request.FILES)
+        if form.is_valid():
+            rule = form.save()
+            created = rule.generate_initial()
+            messages.success(
+                request,
+                f"Programación creada. Se generaron {len(created)} publicaciones "
+                "tal como si las hubieras creado una por una.",
+            )
+            return redirect("schedule_list")
+        messages.error(request, "Revisa los campos marcados en rojo.")
+    else:
+        form = ScheduleRuleForm()
+
+    return render(
+        request,
+        "posts/schedule_form.html",
+        {
+            "form": form,
+            "is_edit": False,
+            "panel_now": timezone.localtime().strftime("%Y-%m-%dT%H:%M:%S"),
+        },
+    )
+
+
+@login_required
+def schedule_edit(request, pk):
+    rule = get_object_or_404(ScheduleRule, pk=pk)
+    if request.method == "POST":
+        form = ScheduleRuleForm(request.POST, request.FILES, instance=rule)
+        if form.is_valid():
+            rule = form.save()
+            created = rule.regenerate() if rule.is_active else []
+            messages.success(
+                request,
+                f"Programación actualizada. Se generaron {len(created)} publicaciones pendientes.",
+            )
+            return redirect("schedule_list")
+        messages.error(request, "Revisa los campos marcados en rojo.")
+    else:
+        form = ScheduleRuleForm(instance=rule)
+
+    return render(
+        request,
+        "posts/schedule_form.html",
+        {
+            "form": form,
+            "rule": rule,
+            "is_edit": True,
+            "panel_now": timezone.localtime().strftime("%Y-%m-%dT%H:%M:%S"),
+        },
+    )
+
+
+@login_required
+@require_POST
+def schedule_toggle(request, pk):
+    rule = get_object_or_404(ScheduleRule, pk=pk)
+    if rule.is_active:
+        cancelled = Post.objects.filter(
+            rule=rule,
+            status=Post.Status.SCHEDULED,
+            scheduled_at__gte=timezone.now(),
+        ).update(status=Post.Status.CANCELLED, updated_at=timezone.now())
+        rule.is_active = False
+        rule.save(update_fields=["is_active", "updated_at"])
+        messages.success(
+            request,
+            f"Tarea detenida. Se cancelaron {cancelled} publicaciones pendientes; "
+            "las ya enviadas se conservan.",
+        )
+    else:
+        rule.is_active = True
+        rule.last_generated_week = None
+        rule.save(update_fields=["is_active", "last_generated_week", "updated_at"])
+        created = rule.generate_initial()
+        messages.success(request, f"Tarea reactivada. Se generaron {len(created)} publicaciones.")
+    return redirect(_safe_next(request))
+
+
+@login_required
+@require_POST
+def schedule_delete(request, pk):
+    rule = get_object_or_404(ScheduleRule, pk=pk)
+    cancelled = Post.objects.filter(
+        rule=rule,
+        status=Post.Status.SCHEDULED,
+        scheduled_at__gte=timezone.now(),
+    ).update(status=Post.Status.CANCELLED, updated_at=timezone.now())
+    name = rule.name
+    rule.delete()
+    messages.success(
+        request,
+        f"Programación «{name}» eliminada. Se cancelaron {cancelled} envíos pendientes.",
+    )
+    return redirect(_safe_next(request))
 
 
 @login_required

@@ -1,9 +1,10 @@
 import shutil
 import tempfile
-from datetime import timedelta
+from datetime import datetime, timedelta
 from io import StringIO
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -11,7 +12,7 @@ from django.utils import timezone
 
 from posts.forms import ChannelForm, PostForm
 from posts.management.commands.scheduler import Command
-from posts.models import BotConfig, Channel, Post
+from posts.models import BotConfig, Channel, Post, ScheduleRule, expand_schedule_rules
 from posts.services.telegram import TelegramError, get_bot_token
 
 
@@ -476,3 +477,169 @@ class ViewTests(BaseDataMixin, TestCase):
         response = self.client.get(reverse("post_edit", args=[post.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Foto de prueba")
+
+
+class ScheduleRuleTests(BaseDataMixin, TestCase):
+    def _rule(self, **kwargs):
+        defaults = {
+            "name": "Noticias",
+            "channel": self.channel,
+            "kind": Post.Kind.TEXT,
+            "text": "Hola semanal",
+            "weekdays": "0,3",
+            "times": "09:00:00,13:30:15",
+            "repeat_weekly": True,
+        }
+        defaults.update(kwargs)
+        rule = ScheduleRule(**defaults)
+        rule.full_clean()
+        rule.save()
+        return rule
+
+    def _now(self, day, hour=7, minute=0, second=0):
+        return timezone.make_aware(datetime(2026, 11, day, hour, minute, second))
+
+    def test_form_parses_days_and_optional_seconds(self):
+        from posts.forms import ScheduleRuleForm
+
+        form = ScheduleRuleForm(
+            data={
+                "name": "Noticias",
+                "channel": self.channel.pk,
+                "kind": Post.Kind.TEXT,
+                "text": "Hola",
+                "parse_mode": Post.ParseMode.HTML,
+                "weekdays": ["0", "3"],
+                "times": "09:00, 13:30:15",
+                "repeat_weekly": "on",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["weekdays"], "0,3")
+        self.assertEqual(form.cleaned_data["times"], "09:00:00,13:30:15")
+
+    def test_form_rejects_invalid_time(self):
+        from posts.forms import ScheduleRuleForm
+
+        form = ScheduleRuleForm(
+            data={
+                "name": "Noticias",
+                "channel": self.channel.pk,
+                "kind": Post.Kind.TEXT,
+                "text": "Hola",
+                "parse_mode": Post.ParseMode.HTML,
+                "weekdays": ["0"],
+                "times": "25:00",
+                "repeat_weekly": "on",
+            }
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("times", form.errors)
+
+    def test_initial_generation_keeps_panel_wall_clock_and_seconds(self):
+        rule = self._rule()
+        with patch("posts.models.timezone.now", return_value=self._now(25)):
+            created = rule.generate_initial()
+        self.assertEqual(len(created), 2)
+        posts = list(Post.objects.filter(rule=rule).order_by("scheduled_at"))
+        self.assertEqual(
+            [post.scheduled_time_label for post in posts], ["09:00", "13:30:15"]
+        )
+        self.assertTrue(
+            all(timezone.localtime(post.scheduled_at).date().day == 26 for post in posts)
+        )
+
+    def test_weekly_expansion_creates_next_week_only_once(self):
+        rule = self._rule()
+        with patch("posts.models.timezone.now", return_value=self._now(25)):
+            rule.generate_initial()
+        with patch("posts.models.timezone.now", return_value=self._now(30, 7)):
+            expand_schedule_rules()
+            expand_schedule_rules()
+        self.assertEqual(Post.objects.filter(rule=rule).count(), 6)
+        rule.refresh_from_db()
+        self.assertEqual(rule.last_generated_week.day, 30)
+
+    def test_stopped_rule_is_not_expanded(self):
+        rule = self._rule(is_active=False)
+        with patch("posts.models.timezone.now", return_value=self._now(26, 20)):
+            expand_schedule_rules()
+        self.assertEqual(Post.objects.filter(rule=rule).count(), 0)
+
+
+
+@override_settings(
+    MEDIA_ROOT=tempfile.mkdtemp(prefix="teleagenda-schedule-"),
+    TELEGRAM_BOT_TOKEN="123456:TEST-TOKEN",
+)
+class ScheduleViewTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(settings.MEDIA_ROOT, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+
+        self.channel = Channel.objects.create(name="Canal", chat_id="@canal_prueba")
+        self.user = get_user_model().objects.create_user(
+            "admin", password="clave-segura-123"
+        )
+        self.client.force_login(self.user)
+
+    def test_list_requires_login(self):
+        self.client.logout()
+        response = self.client.get(reverse("schedule_list"))
+        self.assertEqual(response.status_code, 302)
+
+    def test_create_generates_posts(self):
+        moment = timezone.make_aware(datetime(2026, 11, 25, 7, 0, 0))
+        with patch("posts.models.timezone.now", return_value=moment):
+            response = self.client.post(
+                reverse("schedule_create"),
+                {
+                    "name": "Noticias",
+                    "channel": self.channel.pk,
+                    "kind": Post.Kind.TEXT,
+                    "text": "Hola",
+                    "parse_mode": Post.ParseMode.HTML,
+                    "weekdays": ["0", "3"],
+                    "times": "09:00, 13:30:15",
+                    "repeat_weekly": "on",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ScheduleRule.objects.count(), 1)
+        self.assertEqual(Post.objects.filter(rule__isnull=False).count(), 2)
+
+    def test_toggle_stops_and_cancels_pending(self):
+        rule = ScheduleRule.objects.create(
+            name="Noticias",
+            channel=self.channel,
+            kind=Post.Kind.TEXT,
+            text="Hola",
+            weekdays="0,3",
+            times="09:00:00,13:30:15",
+        )
+        post = Post.objects.create(
+            rule=rule,
+            channel=self.channel,
+            kind=Post.Kind.TEXT,
+            text="Hola",
+            scheduled_at=timezone.now() + timedelta(hours=2),
+        )
+        self.client.post(reverse("schedule_toggle", args=[rule.pk]))
+        rule.refresh_from_db()
+        post.refresh_from_db()
+        self.assertFalse(rule.is_active)
+        self.assertEqual(post.status, Post.Status.CANCELLED)
+
+    def test_dashboard_shows_seconds(self):
+        Post.objects.create(
+            channel=self.channel,
+            kind=Post.Kind.TEXT,
+            text="Con segundos",
+            scheduled_at=timezone.make_aware(datetime(2030, 1, 1, 9, 0, 15)),
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertContains(response, "09:00:15")

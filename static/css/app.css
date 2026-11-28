@@ -2328,3 +2328,96 @@ input[type="radio"] {
     border-top: 1px solid var(--border-soft);
 }
 
+.panel-clock-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s-4);
+    margin-bottom: var(--s-5);
+    padding: var(--s-4);
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-md);
+}
+
+.panel-clock-kicker {
+    display: block;
+    color: var(--muted);
+    font-size: var(--fs-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.panel-clock {
+    display: block;
+    color: var(--accent-strong);
+    font-family: var(--mono);
+    font-size: var(--fs-xl);
+    font-variant-numeric: tabular-nums;
+}
+
+.weekday-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+}
+
+.weekday-inputs {
+    display: contents;
+}
+
+.weekday-inputs li {
+    list-style: none;
+}
+
+.weekday-inputs label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s-2);
+    padding: var(--s-2) var(--s-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-full);
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.weekday-inputs label:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.weekday-inputs label:has(input:checked) {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent-strong);
+}
+
+.weekday-inputs input {
+    width: auto;
+    margin: 0;
+    accent-color: var(--accent);
+}
+
+.check-field-highlight {
+    margin-top: var(--s-5);
+    padding: var(--s-4);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-md);
+}
+
+.cell-schedule {
+    color: var(--text);
+    font-size: var(--fs-sm);
+}
+
+@media (max-width: 720px) {
+    .panel-clock-box {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

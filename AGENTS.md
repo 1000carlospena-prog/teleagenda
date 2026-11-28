@@ -52,11 +52,11 @@ No hay linter configurado. Antes de dar por terminado un cambio ejecuta `manage.
 ## Arquitectura
 
 - `config/`: configuración Django; `TIME_ZONE` y el token se leen del `.env`.
-- `posts/models.py`: `Channel`, `Post`, `WorkerState` y `BotConfig`, límites de Telegram y validaciones.
+- `posts/models.py`: `Channel`, `Post`, `ScheduleRule`, `WorkerState` y `BotConfig`, límites de Telegram y validaciones. `ScheduleRule.generate_initial()` crea publicaciones normales; `expand_schedule_rules()` genera la semana siguiente para las reglas activas con `repeat_weekly`.
 - `posts/forms.py`: validación de canales y publicaciones.
 - `posts/views.py`: panel, CRUD, acciones y endpoint de estado.
 - `posts/services/telegram.py`: cliente centralizado de la Bot API.
-- `posts/management/commands/scheduler.py`: worker que reclama y envía publicaciones vencidas.
+- `posts/management/commands/scheduler.py`: worker que expande las programaciones semanales, reclama y envía publicaciones vencidas.
 - `templates/posts/bot_settings.html`: configuración del token desde el panel; permite cambiarlo y quitarlo.
 - `templates/posts/channel_discover.html`: detección de canales recientes desde Telegram.
 - `templates/`: interfaz del panel.
@@ -120,4 +120,4 @@ node --check static/js/app.js
 .\.venv\Scripts\python.exe manage.py test
 ```
 
-La suite actual tiene 42 pruebas. Un cambio está listo cuando los tests pasan, no hay migraciones pendientes y la interfaz probada no deja datos temporales.
+La suite actual tiene 51 pruebas. Un cambio está listo cuando los tests pasan, no hay migraciones pendientes y la interfaz probada no deja datos temporales.

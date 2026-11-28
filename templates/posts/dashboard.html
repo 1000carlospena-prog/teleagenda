@@ -58,7 +58,7 @@
     </span>
     <span class="next-post-body">
         <span class="next-post-kicker">Próximo envío</span>
-        <strong>{{ next_post.scheduled_at|date:"l d \d\e F, H:i" }}</strong>
+        <strong>{{ next_post.scheduled_at|date:"l d \d\e F" }}, {{ next_post.scheduled_time_label }}</strong>
         <span>{{ next_post.channel.name }} · {{ next_post.content_preview|truncatechars:80 }}</span>
     </span>
     <span class="next-post-action">Revisar &rarr;</span>
@@ -160,7 +160,7 @@
                             </span>
                             <span class="post-info">
                                 <span class="post-snippet" title="{{ post.text|default:post.content_preview }}">{{ post.content_preview|truncatechars:72 }}</span>
-                                <span class="post-meta">{{ post.get_kind_display }}{% if post.parse_mode %} · {{ post.get_parse_mode_display }}{% endif %}</span>
+                                <span class="post-meta">{{ post.get_kind_display }}{% if post.parse_mode %} · {{ post.get_parse_mode_display }}{% endif %}{% if post.rule_id %} · <a href="{% url 'schedule_edit' post.rule_id %}">Semanal</a>{% endif %}</span>
                                 {% if post.status == 'fallida' and post.error_text %}
                                 <span class="post-error" title="{{ post.error_text }}">{{ post.error_text|truncatechars:56 }}</span>
                                 {% endif %}
@@ -168,7 +168,7 @@
                         </div>
                     </td>
                     <td class="cell-channel">{{ post.channel.name }}</td>
-                    <td class="cell-date">{{ post.scheduled_at|date:"d M Y" }}<span>{{ post.scheduled_at|date:"H:i" }}</span></td>
+                    <td class="cell-date">{{ post.scheduled_at|date:"d M Y" }}<span>{{ post.scheduled_time_label }}</span></td>
                     <td class="cell-date">
                         {% if post.sent_at %}
                         {{ post.sent_at|date:"d M Y" }}<span>{{ post.sent_at|date:"H:i" }}</span>

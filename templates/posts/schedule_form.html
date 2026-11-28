@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Editar programación{% else %}Nueva programación{% endif %} · TeleAgenda{% endblock %}
+{% block page_title %}{% if is_edit %}Editar programación{% else %}Nueva programación{% endif %}{% endblock %}
+{% block page_subtitle %}Elige días y horas del panel; cada envío se crea como una publicación normal.{% endblock %}
+
+{% block content %}
+<form method="post" enctype="multipart/form-data" class="form-layout" data-schedule-form data-loading="Guardando…" data-panel-now="{{ panel_now }}">
+    {% csrf_token %}
+    <div class="card form-card">
+        {% if form.non_field_errors %}
+        <div class="alert alert-error" role="alert">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+        {% endif %}
+
+        <section class="form-section">
+            <div class="section-head">
+                <span class="section-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1-10-14.14"/></svg>
+                </span>
+                <div>
+                    <h2>Destino y nombre</h2>
+                    <p>La programación agrupa los envíos; cada uno se puede editar por separado.</p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="{{ form.name.id_for_label }}">Nombre</label>
+                {{ form.name }}
+                {% for error in form.name.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.channel.id_for_label }}">Canal</label>
+                {{ form.channel }}
+                {% for error in form.channel.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                <p class="help">El bot debe ser administrador con permiso para publicar. <a href="{% url 'channels' %}">Gestionar canales</a>.</p>
+            </div>
+
+            <div class="field">
+                <span class="label">Tipo de publicación</span>
+                <div class="kind-options">{{ form.kind }}</div>
+                {% for error in form.kind.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+        </section>
+
+        <section class="form-section">
+            <div class="section-head">
+                <span class="section-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H6a3 3 0 0 1-3-3v-5a8 8 0 1 1 18 0Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/></svg>
+                </span>
+                <div>
+                    <h2>Contenido</h2>
+                    <p>El mismo mensaje se publicará en cada fecha y hora elegida.</p>
+                </div>
+            </div>
+
+            <div class="field" data-field="text">
+                <label for="{{ form.text.id_for_label }}">Texto del mensaje</label>
+                {{ form.text }}
+                <div class="field-foot">
+                    <p class="help">Texto hasta 4096 caracteres; caption de imagen hasta 1024.</p>
+                    <span class="char-counter" data-schedule-counter></span>
+                </div>
+                {% for error in form.text.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="field" data-field="file">
+                <label for="{{ form.file.id_for_label }}">Archivo</label>
+                {{ form.file }}
+                <p class="help">Imagen JPG/PNG/WEBP de hasta 10 MB o sticker WEBP/TGS/WEBM de hasta 512 KB. Cada envío guarda su propia copia.</p>
+                {% for error in form.file.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="format-row" data-field="format">
+                <div class="field">
+                    <label for="{{ form.parse_mode.id_for_label }}">Formato del texto</label>
+                    {{ form.parse_mode }}
+                    {% for error in form.parse_mode.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                </div>
+                <label class="check-field">
+                    {{ form.disable_preview }}
+                    <span>
+                        <strong>Ocultar vista previa de enlaces</strong>
+                        <small>Solo se aplica a mensajes de texto.</small>
+                    </span>
+                </label>
+            </div>
+        </section>
+
+        <section class="form-section">
+            <div class="section-head">
+                <span class="section-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M8 2v4M16 2v4M3 10h18M12 14v3M10.5 15.5h3"/></svg>
+                </span>
+                <div>
+                    <h2>Días y horas del panel</h2>
+                    <p>La hora se toma tal como aparece aquí; no se convierte desde tu dispositivo.</p>
+                </div>
+            </div>
+
+            <div class="panel-clock-box">
+                <div>
+                    <span class="panel-clock-kicker">Hora del panel</span>
+                    <strong class="panel-clock" data-panel-clock>--:--:--</strong>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" data-use-now>Usar esta hora</button>
+            </div>
+
+            <div class="field">
+                <span class="label">Días</span>
+                <div class="weekday-grid">
+                    {{ form.weekdays }}
+                    <button type="button" class="chip" data-all-days>Todos los días</button>
+                </div>
+                {% for error in form.weekdays.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="field">
+                <label for="{{ form.times.id_for_label }}">Horas (una o varias)</label>
+                {{ form.times }}
+                {% for error in form.times.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+                <p class="help">Separa las horas con comas. Puedes escribir solo <code>09:00</code> o incluir segundos: <code>09:00:15</code>. Si omites los segundos se usa <code>:00</code>.</p>
+            </div>
+
+            <label class="check-field check-field-highlight">
+                {{ form.repeat_weekly }}
+                <span>
+                    <strong>Publicar todas las semanas</strong>
+                    <small>Repite esta misma combinación de días y horas cada semana hasta que detengas la tarea.</small>
+                </span>
+            </label>
+            {% for error in form.repeat_weekly.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+        </section>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" data-submit>
+                {% if is_edit %}Guardar cambios{% else %}Crear programación{% endif %}
+            </button>
+            <a class="btn btn-ghost" href="{% url 'schedule_list' %}">Cancelar</a>
+            <span class="form-hint">Zona del panel: <strong>{{ display_timezone }}</strong>. Cada envío aparecerá en el panel como una publicación más.</span>
+        </div>
+    </div>
+
+    <aside class="preview-column">
+        <div class="card tips-card">
+            <h2>Cómo funciona</h2>
+            <ul class="tips-list">
+                <li>Elige, por ejemplo, lunes y jueves a las 09:00 y 18:30:15.</li>
+                <li>Se crean publicaciones independientes: puedes editarlas o cancelarlas una por una.</li>
+                <li>Con «Publicar todas las semanas», al llegar una nueva semana se generan las siguientes.</li>
+                <li>Para parar todo, detén la tarea desde la lista de programaciones.</li>
+            </ul>
+        </div>
+    </aside>
+</form>
+{% endblock %}
