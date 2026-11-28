@@ -327,6 +327,39 @@
         update();
     };
 
+    const initCountdowns = () => {
+        const nodes = Array.from(document.querySelectorAll("[data-countdown]"));
+        if (!nodes.length) return;
+
+        const pad = (value) => String(value).padStart(2, "0");
+        const render = () => {
+            const now = Date.now();
+            nodes.forEach((node) => {
+                const target = new Date(node.dataset.countdown).getTime();
+                if (Number.isNaN(target)) {
+                    node.textContent = "—";
+                    return;
+                }
+                const remaining = Math.max(0, Math.floor((target - now) / 1000));
+                if (remaining === 0) {
+                    node.textContent = "En cola";
+                    node.classList.add("is-due");
+                    return;
+                }
+                const hours = Math.floor(remaining / 3600);
+                const minutes = Math.floor((remaining % 3600) / 60);
+                const seconds = remaining % 60;
+                node.textContent = hours
+                    ? `${hours}h ${pad(minutes)}m ${pad(seconds)}s`
+                    : `${minutes}m ${pad(seconds)}s`;
+                node.classList.remove("is-due");
+            });
+        };
+
+        render();
+        window.setInterval(render, 1000);
+    };
+
     const initScheduleForm = () => {
         const form = document.querySelector("[data-schedule-form]");
         if (!form) return;
@@ -407,5 +440,6 @@
         initStatusPolling();
         initPostForm();
         initScheduleForm();
+        initCountdowns();
     });
 })();

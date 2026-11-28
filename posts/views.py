@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 from django.conf import settings
@@ -87,6 +87,18 @@ def dashboard(request):
         .first()
     )
 
+    today = timezone.localdate()
+    day_start = timezone.make_aware(datetime.combine(today, time.min))
+    day_end = timezone.make_aware(datetime.combine(today + timedelta(days=1), time.min))
+    pending_qs = (
+        Post.objects.select_related("channel")
+        .filter(status=Post.Status.SCHEDULED)
+        .order_by("scheduled_at")
+    )
+    today_qs = pending_qs.filter(scheduled_at__gte=day_start, scheduled_at__lt=day_end)
+    pending_count = pending_qs.count()
+    today_count = today_qs.count()
+
     paginator = Paginator(posts, 15)
     page_obj = paginator.get_page(request.GET.get("page"))
     params = request.GET.copy()
@@ -99,6 +111,11 @@ def dashboard(request):
         "active_channels": Channel.objects.filter(is_active=True).count(),
         "total_channels": Channel.objects.count(),
         "next_post": next_post,
+        "today": today,
+        "pending_posts": pending_qs[:8],
+        "today_posts": today_qs[:8],
+        "pending_count": pending_count,
+        "today_count": today_count,
         "status_choices": Post.Status.choices,
         "kind_choices": Post.Kind.choices,
         "channels": Channel.objects.all(),

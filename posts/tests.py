@@ -1,6 +1,6 @@
 import shutil
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from io import StringIO
 from unittest.mock import patch
 
@@ -323,6 +323,40 @@ class ViewTests(BaseDataMixin, TestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Publicaciones")
+
+    def test_dashboard_task_cards_and_countdown(self):
+        today = timezone.localdate()
+        today_at = timezone.make_aware(datetime.combine(today, time(9, 0, 15)))
+        tomorrow_at = timezone.make_aware(
+            datetime.combine(today + timedelta(days=1), time(10, 0))
+        )
+        Post.objects.create(
+            channel=self.channel,
+            kind=Post.Kind.TEXT,
+            text="Tarea de hoy",
+            scheduled_at=today_at,
+        )
+        Post.objects.create(
+            channel=self.channel,
+            kind=Post.Kind.TEXT,
+            text="Tarea de mañana",
+            scheduled_at=tomorrow_at,
+        )
+        Post.objects.create(
+            channel=self.channel,
+            kind=Post.Kind.TEXT,
+            status=Post.Status.SENT,
+            text="Ya enviada",
+            scheduled_at=today_at,
+            sent_at=timezone.now(),
+        )
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.context["pending_count"], 2)
+        self.assertEqual(response.context["today_count"], 1)
+        self.assertContains(response, "Pendientes")
+        self.assertContains(response, "Para hoy")
+        self.assertContains(response, "data-countdown=")
+        self.assertContains(response, "09:00:15")
 
     def test_create_post(self):
         response = self.client.post(

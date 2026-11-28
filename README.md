@@ -14,6 +14,7 @@ Bot de Telegram + panel web en Django para programar publicaciones de **texto, i
 - Detección de canales recientes desde el panel, sin usar `get_chat_ids`.
 - Botón **Enviar ahora** al crear o editar publicaciones.
 - Programaciones semanales: varios días y horas (con segundos opcionales) y opción de repetir todas las semanas.
+- Panel con tarjetas de **Pendientes** y **Para hoy**, con cuenta atrás en vivo hasta cada envío.
 - Verificación de canales con la API de Telegram y errores visibles.
 - Vista previa aproximada del mensaje y atajos de programación.
 - Registro de errores de Telegram y recuperación de envíos interrumpidos.

@@ -120,4 +120,4 @@ node --check static/js/app.js
 .\.venv\Scripts\python.exe manage.py test
 ```
 
-La suite actual tiene 51 pruebas. Un cambio está listo cuando los tests pasan, no hay migraciones pendientes y la interfaz probada no deja datos temporales.
+La suite actual tiene 52 pruebas. Un cambio está listo cuando los tests pasan, no hay migraciones pendientes y la interfaz probada no deja datos temporales.

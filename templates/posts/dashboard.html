@@ -71,6 +71,60 @@
 </div>
 {% endif %}
 
+<div class="task-grid">
+    <section class="card task-card" id="pendientes">
+        <div class="card-head">
+            <div>
+                <h2>Pendientes</h2>
+                <p class="card-subtitle">{{ pending_posts|length }} de {{ pending_count }} próximos envíos</p>
+            </div>
+            <a class="btn btn-ghost btn-sm" href="{% url 'dashboard' %}?status=programada">Ver todas</a>
+        </div>
+        {% if pending_posts %}
+        <ul class="task-list">
+            {% for post in pending_posts %}
+            <li class="task-item">
+                <span class="task-time">{{ post.scheduled_at|date:"d M" }}<strong>{{ post.scheduled_time_label }}</strong></span>
+                <span class="task-body">
+                    <span class="task-snippet" title="{{ post.text|default:post.content_preview }}">{{ post.content_preview|truncatechars:58 }}</span>
+                    <span class="task-meta">{{ post.channel.name }}{% if post.rule_id %} · Semanal{% endif %}</span>
+                </span>
+                <span class="countdown" data-countdown="{{ post.scheduled_at|date:'c' }}">—</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="task-empty">No hay publicaciones pendientes. <a href="{% url 'post_create' %}">Crear una</a>.</p>
+        {% endif %}
+    </section>
+
+    <section class="card task-card" id="hoy">
+        <div class="card-head">
+            <div>
+                <h2>Para hoy</h2>
+                <p class="card-subtitle">{{ today|date:"l d \d\e F" }} · {{ today_posts|length }} de {{ today_count }}</p>
+            </div>
+            <a class="btn btn-ghost btn-sm" href="{% url 'post_create' %}">Nueva</a>
+        </div>
+        {% if today_posts %}
+        <ul class="task-list">
+            {% for post in today_posts %}
+            <li class="task-item">
+                <span class="task-time"><strong>{{ post.scheduled_time_label }}</strong></span>
+                <span class="task-body">
+                    <span class="task-snippet" title="{{ post.text|default:post.content_preview }}">{{ post.content_preview|truncatechars:58 }}</span>
+                    <span class="task-meta">{{ post.channel.name }}{% if post.rule_id %} · Semanal{% endif %}</span>
+                </span>
+                <span class="countdown" data-countdown="{{ post.scheduled_at|date:'c' }}">—</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="task-empty">Hoy no hay publicaciones programadas.</p>
+        {% endif %}
+    </section>
+</div>
+
 <form class="filters card" method="get" action="{% url 'dashboard' %}">
     <div class="filter-field">
         <label for="filter-status">Estado</label>
